@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>University CGPA Calculator</title>
+
+    <!-- Bootstrap 5 CSS (only external dependency) -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Embedded CSS: gradient theme, animations, card styles -->
+    <style>
+        :root {
+            --grad-start: #6a11cb;
+            --grad-end: #2575fc;
+            --accent: #6f42c1;
+        }
+
+        body {
+            background: linear-gradient(180deg, rgba(37, 117, 252, 0.06) 0%, rgba(106, 17, 203, 0.04) 100%);
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, rgba(106, 17, 203, 0.10), rgba(37, 117, 252, 0.07));
+            border-radius: 14px;
+            padding: 1.6rem;
+            box-shadow: 0 6px 20px rgba(18, 24, 40, 0.06);
+        }
+
+        .gradient-header {
+            background: linear-gradient(90deg, var(--grad-start), var(--grad-end));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            color: transparent;
+        }
+
+        /* Course row / animation */
+        .course-row {
+            transition: all 260ms ease;
+            transform-origin: top;
+            will-change: transform, opacity, height;
+        }
+
+        .course-row.adding {
+            transform: translateY(-6px);
+            opacity: 0;
+        }
+
+        .course-row.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .course-row.removing {
+            transform: translateY(-10px) scale(0.98);
+            opacity: 0;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        /* Result card colors for classifications */
+        .result-card.first {
+            border-left: 6px solid #6a11cb;
+            background: #f7f3ff;
+        }
+
+        .result-card.second-up {
+            border-left: 6px solid #4f46e5;
+            background: #f3f5ff;
+        }
+
+        .result-card.second-low {
+            border-left: 6px solid #0ea5a4;
+            background: #f0fdfa;
+        }
+
+        .result-card.third {
+            border-left: 6px solid #f59e0b;
+            background: #fffbeb;
+        }
+
+        .result-card.pass {
+            border-left: 6px solid #94a3b8;
+            background: #f8fafc;
+        }
+
+        .result-card.fail {
+            border-left: 6px solid #ef4444;
+            background: #fff5f5;
+        }
+
+        /* Small helpers */
+        .small-muted {
+            font-size: 0.86rem;
+            color: #6b7280;
+        }
+
+        .card-ghost {
+            background: transparent;
+            border: 0;
+        }
+
+        .control-note {
+            font-size: .9rem;
+            color: #475569;
+        }
+
+        .scale-badge {
+            font-size: .86rem;
+            padding: .45rem .6rem;
+            border-radius: .5rem;
+            background: rgba(106, 17, 203, 0.06);
+            color: var(--accent);
+        }
+
+        /* Responsive tweaks */
+        @media (max-width: 576px) {
+            .hero {
+                padding: 1rem;
+            }
+
+            .gradient-header {
+                font-size: 1.25rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <main class="container py-5">
+        <div class="hero mb-4">
+            <div class="d-md-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h1 class="h3 mb-0 gradient-header">CGPA Calculator — 5-Point Scale</h1>
+                    <p class="mb-0 small-muted">Calculate Semester GPA or combined CGPA for a full session. Uses the grading scale (A–F).</p>
+                </div>
+
+                <div class="mt-3 mt-md-0">
+                    <!-- Mode toggle -->
+                    <div class="btn-group" role="group" aria-label="mode toggle">
+                        <input type="radio" class="btn-check" name="mode" id="mode-semester" autocomplete="off" checked>
+                        <label class="btn btn-outline-primary" for="mode-semester" id="label-semester">Single
+                            Semester</label>
+
+                        <input type="radio" class="btn-check" name="mode" id="mode-session" autocomplete="off">
+                        <label class="btn btn-outline-primary" for="mode-session" id="label-session">Full Session (2
+                            Semesters)</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top controls -->
+            <div
+                class="d-flex flex-column flex-md-row gap-2 justify-content-between align-items-start align-items-md-center">
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <button id="add-course-s1" class="btn btn-sm btn-primary">+ Add Course (Sem 1)</button>
+                    <button id="add-course-s2" class="btn btn-sm btn-outline-primary d-none">+ Add Course (Sem
+                        2)</button>
+                    <button id="reset-btn" class="btn btn-sm btn-outline-danger">Reset / Clear</button>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <button id="calculate-btn" class="btn btn-success">Calculate</button>
+                    <button id="demo-fill" class="btn btn-outline-secondary btn-sm">Fill Demo</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row gy-4">
+            <!-- Left column: Input forms -->
+            <div class="col-lg-8">
+                <div class="card mb-3">
+                    <div class="card-body">
+
+                        <!-- Semester 1 -->
+                        <section id="semester-1-section" class="mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="mb-0">Semester 1</h5>
+                                <span class="small-muted">Enter Course, Credit Units &amp; Grade</span>
+                            </div>
+
+                            <div id="sem1-list" class="row g-3">
+                                <!-- Course rows inserted here dynamically -->
+                            </div>
+                        </section>
+
+                        <!-- Semester 2 (hidden in single mode) -->
+                        <section id="semester-2-section" class="mb-4 d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="mb-0">Semester 2</h5>
+                                <span class="small-muted">Enter Course, Credit Units &amp; Grade</span>
+                            </div>
+
+                            <div id="sem2-list" class="row g-3">
+                                <!-- Course rows inserted here dynamically -->
+                            </div>
+                        </section>
+
+                        <div class="mt-3 small-muted">
+                            <strong>Note:</strong> All fields are required. Credits should be positive numbers. Use the
+                            grade dropdown to select the letter grade.
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Grading scale reference -->
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6 class="mb-2">Grading Scale</h6>
+                        <div class="d-flex flex-wrap gap-2">
+                            <div class="scale-badge">A (70–100%) = 5.0</div>
+                            <div class="scale-badge">B (60–69%) = 4.0</div>
+                            <div class="scale-badge">C (50–59%) = 3.0</div>
+                            <div class="scale-badge">D (45–49%) = 2.0</div>
+                            <div class="scale-badge">E (40–44%) = 1.0</div>
+                            <div class="scale-badge">F (0–39%) = 0.0</div>
+                        </div>
+                        <p class="mt-3 mb-0 control-note">This reference helps when you only have percentages — pick the
+                            appropriate letter grade above.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right column: Results -->
+            <div class="col-lg-4">
+                <div id="result-card" class="card result-card card-ghost p-3 mb-3">
+                    <div class="card-body">
+                        <h6 class="mb-2">Results</h6>
+
+                        <div id="result-body" class="mb-3">
+                            <p class="mb-1 small-muted">No calculation yet.</p>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <div id="gpa-display" class="p-3 rounded d-none">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <div class="small-muted">GPA / CGPA</div>
+                                        <h3 id="gpa-value" class="mb-0">0.00</h3>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="small-muted">Total Credits</div>
+                                        <h4 id="total-credits" class="mb-0">0</h4>
+                                    </div>
+                                </div>
+                                <div class="mt-2 small-muted">Classification: <span id="degree-class"
+                                        class="fw-semibold">—</span></div>
+                            </div>
+                            <div id="per-semester-results" class="d-none">
+                                <!-- when session mode: show two small cards -->
+                                <div class="row g-2" id="sem-results-row"></div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Quick tips -->
+                <div class="card">
+                    <div class="card-body">
+                        <h6 class="mb-2">Quick Tips</h6>
+                        <ul class="small-muted mb-0">
+                            <li>Use <strong>Full Session</strong> to compute CGPA for Semester 1 + Semester 2.</li>
+                            <li>Round-off is to <strong>2 decimal places</strong>.</li>
+                            <li>Reset clears everything to defaults.</li>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <p class="small text-muted">
+                ⚠️ <strong>Note:</strong> Your school's grading system might differ slightly.
+                Just ignore this and input your grades accordingly.
+            </p>
+        </div>
+    </main>
+
+    <!-- Embedded JavaScript: all logic, dynamic rows, validation, animations -->
+    <script>
+        /******************************************************
+         * CGPA Calculator (pure JS + Bootstrap)
+         * - Two modes: single semester | full session
+         * - Dynamic add/remove course rows
+         * - Preloads 3 courses per semester by default
+         * - Validation & results with color-coded classification
+         ******************************************************/
+
+        // --- Grade options (letter => grade point) ---
+        const GRADE_OPTIONS = [
+            { label: 'A (70-100) — 5.0', value: '5.0' },
+            { label: 'B (60-69)  — 4.0', value: '4.0' },
+            { label: 'C (50-59)  — 3.0', value: '3.0' },
+            { label: 'D (45-49)  — 2.0', value: '2.0' },
+            { label: 'E (40-44)  — 1.0', value: '1.0' },
+            { label: 'F (0-39)   — 0.0', value: '0.0' },
+        ];
+
+        // --- DOM references ---
+        const sem1List = document.getElementById('sem1-list');
+        const sem2List = document.getElementById('sem2-list');
+        const addCourseS1Btn = document.getElementById('add-course-s1');
+        const addCourseS2Btn = document.getElementById('add-course-s2');
+        const calculateBtn = document.getElementById('calculate-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const demoFillBtn = document.getElementById('demo-fill');
+        const modeSemester = document.getElementById('mode-semester');
+        const modeSession = document.getElementById('mode-session');
+        const semester2Section = document.getElementById('semester-2-section');
+        const addCourseS2Wrapper = document.getElementById('add-course-s2');
+        const gpaDisplay = document.getElementById('gpa-display');
+        const gpaValue = document.getElementById('gpa-value');
+        const totalCreditsEl = document.getElementById('total-credits');
+        const degreeClassEl = document.getElementById('degree-class');
+        const resultCard = document.getElementById('result-card');
+        const resultBody = document.getElementById('result-body');
+        const perSemesterResults = document.getElementById('per-semester-results');
+        const semResultsRow = document.getElementById('sem-results-row');
+
+        // Unique ID generator for rows
+        let courseIdCounter = 0;
+        function nextId() { return 'course-' + (++courseIdCounter); }
+
+        // --- create grade select element ---
+        function createGradeSelect(nameAttr = '') {
+            const select = document.createElement('select');
+            select.className = 'form-select form-select-sm';
+            select.setAttribute('aria-label', 'Grade');
+            if (nameAttr) select.name = nameAttr;
+
+            GRADE_OPTIONS.forEach(opt => {
+                const o = document.createElement('option');
+                o.value = opt.value;
+                o.textContent = opt.label;
+                select.appendChild(o);
+            });
+            return select;
+        }
+
+        // --- create a single course row DOM element ---
+        function createCourseRow(semester = 1, pre = {}) {
+            const id = nextId();
+            // wrapper column
+            const wrapper = document.createElement('div');
+            wrapper.className = 'col-12 course-row adding';
+            wrapper.dataset.rowId = id;
+
+            // inner card-like row
+            wrapper.innerHTML = `
+        <div class="d-flex gap-2 align-items-center p-2 rounded border">
+          <input type="text" class="form-control form-control-sm course-name" placeholder="Course name (e.g. MTH101)" aria-label="Course name" />
+          <input type="number" min="0" step="0.5" class="form-control form-control-sm course-credit" placeholder="Credit" aria-label="Credit units" style="max-width:100px" />
+          <div class="grade-select-wrapper" style="min-width:190px"></div>
+          <button class="btn btn-sm btn-outline-danger remove-course" title="Remove course">Remove</button>
+        </div>
+      `;
+
+            // append grade select
+            const gradeWrapper = wrapper.querySelector('.grade-select-wrapper');
+            gradeWrapper.appendChild(createGradeSelect());
+
+            // populate if provided
+            if (pre.name) wrapper.querySelector('.course-name').value = pre.name;
+            if (pre.credit != null) wrapper.querySelector('.course-credit').value = pre.credit;
+            if (pre.grade != null) wrapper.querySelector('select').value = String(pre.grade);
+
+            // add remove behavior with animation
+            const removeBtn = wrapper.querySelector('.remove-course');
+            removeBtn.addEventListener('click', () => {
+                animateRemoveRow(wrapper);
+            });
+
+            // append and animate in
+            const parent = (semester === 2) ? sem2List : sem1List;
+            parent.appendChild(wrapper);
+            // small delay to trigger entrance animation
+            requestAnimationFrame(() => {
+                wrapper.classList.remove('adding');
+                wrapper.classList.add('show');
+            });
+            return wrapper;
+        }
+
+        // animate removal to keep it smooth
+        function animateRemoveRow(rowEl) {
+            rowEl.classList.add('removing');
+            // actually remove after animation
+            setTimeout(() => {
+                rowEl.remove();
+            }, 300);
+        }
+
+        // function to clear all course lists
+        function clearAllCourses() {
+            sem1List.innerHTML = '';
+            sem2List.innerHTML = '';
+            courseIdCounter = 0;
+        }
+
+        // preload default courses (3 per semester)
+        function preloadDefaults() {
+            clearAllCourses();
+            // Semester 1 defaults
+            createCourseRow(1, { name: 'MTH101', credit: 3, grade: 5.0 });
+            createCourseRow(1, { name: 'CHM102', credit: 2, grade: 4.0 });
+            createCourseRow(1, { name: 'GNS103', credit: 2, grade: 3.0 });
+            // Semester 2 defaults
+            createCourseRow(2, { name: 'PHY201', credit: 3, grade: 4.0 });
+            createCourseRow(2, { name: 'CSC202', credit: 3, grade: 5.0 });
+            createCourseRow(2, { name: 'ENG203', credit: 2, grade: 3.0 });
+        }
+
+        // --- get course data from a container (sem1 or sem2) ---
+        function readCoursesFrom(containerEl) {
+            const rows = Array.from(containerEl.querySelectorAll('.course-row'));
+            const courses = rows.map(row => {
+                const name = row.querySelector('.course-name').value.trim();
+                const creditRaw = row.querySelector('.course-credit').value;
+                const credit = creditRaw === '' ? NaN : Number(creditRaw);
+                const grade = parseFloat(row.querySelector('select').value);
+                return { name, credit, grade, rowEl: row };
+            });
+            return courses;
+        }
+
+        // --- Validation ---
+        function validateCourses(courses) {
+            if (!courses.length) return { ok: false, message: 'No courses found.' };
+            for (const c of courses) {
+                if (!c.name) return { ok: false, message: 'All courses must have a name.' };
+                if (isNaN(c.credit) || c.credit <= 0) return { ok: false, message: 'Credit units must be positive numbers for all courses.' };
+                if (isNaN(c.grade)) return { ok: false, message: 'Please select a grade for every course.' };
+            }
+            return { ok: true };
+        }
+
+        // --- Calculation logic (GPA = sum(grade*credit)/sum(credit)) ---
+        function computeGPA(courses) {
+            let totalCredit = 0;
+            let weighted = 0;
+            for (const c of courses) {
+                totalCredit += c.credit;
+                weighted += c.grade * c.credit;
+            }
+            const gpa = totalCredit ? (weighted / totalCredit) : 0;
+            return { gpa, totalCredit, weighted };
+        }
+
+        // --- Degree classification based on CGPA ---
+        function classifyCgpa(val) {
+            // expects number
+            if (val >= 4.50) return { cls: 'First Class', key: 'first' };
+            if (val >= 3.50) return { cls: 'Second Class Upper', key: 'second-up' };
+            if (val >= 2.50) return { cls: 'Second Class Lower', key: 'second-low' };
+            if (val >= 1.50) return { cls: 'Third Class', key: 'third' };
+            if (val >= 1.00) return { cls: 'Pass', key: 'pass' };
+            return { cls: 'Fail', key: 'fail' };
+        }
+
+        // --- Render results ---
+        function showSingleSemesterResult(semCourses) {
+            const v = computeGPA(semCourses);
+            const gpaRounded = v.gpa ? (Math.round(v.gpa * 100) / 100).toFixed(2) : '0.00';
+            gpaValue.textContent = gpaRounded;
+            totalCreditsEl.textContent = v.totalCredit.toFixed(1).replace(/\.0$/, '');
+            const classification = classifyCgpa(Number(gpaRounded));
+            degreeClassEl.textContent = classification.cls;
+
+            // apply color class
+            resultCard.className = 'card result-card card-ghost p-3 ' + classification.key;
+            gpaDisplay.classList.remove('d-none');
+            perSemesterResults.classList.add('d-none');
+
+            // update small result body text
+            resultBody.innerHTML = `<div class="small-muted">Semester GPA calculated.</div>`;
+        }
+
+        function showSessionResult(sem1Courses, sem2Courses) {
+            const r1 = computeGPA(sem1Courses);
+            const r2 = computeGPA(sem2Courses);
+            // combined CGPA via total weighted / total credits
+            const totalWeighted = r1.weighted + r2.weighted;
+            const totalCredit = r1.totalCredit + r2.totalCredit;
+            const cgpa = totalCredit ? (totalWeighted / totalCredit) : 0;
+            const cgpaRounded = totalCredit ? (Math.round(cgpa * 100) / 100).toFixed(2) : '0.00';
+
+            // per-semester rounded
+            const s1gpa = r1.totalCredit ? (Math.round(r1.gpa * 100) / 100).toFixed(2) : '0.00';
+            const s2gpa = r2.totalCredit ? (Math.round(r2.gpa * 100) / 100).toFixed(2) : '0.00';
+
+            gpaValue.textContent = cgpaRounded;
+            totalCreditsEl.textContent = totalCredit.toFixed(1).replace(/\.0$/, '');
+            const classification = classifyCgpa(Number(cgpaRounded));
+            degreeClassEl.textContent = classification.cls;
+            resultCard.className = 'card result-card card-ghost p-3 ' + classification.key;
+
+            // Show per-semester small cards
+            perSemesterResults.classList.remove('d-none');
+            gpaDisplay.classList.remove('d-none');
+            semResultsRow.innerHTML = `
+        <div class="col-12 col-md-6">
+          <div class="p-2 rounded shadow-sm bg-white">
+            <div class="small-muted">Semester 1 GPA</div>
+            <div class="fw-bold fs-5">${s1gpa}</div>
+            <div class="small-muted">Credits: ${r1.totalCredit.toFixed(1).replace(/\.0$/, '')}</div>
+          </div>
+        </div>
+        <div class="col-12 col-md-6">
+          <div class="p-2 rounded shadow-sm bg-white">
+            <div class="small-muted">Semester 2 GPA</div>
+            <div class="fw-bold fs-5">${s2gpa}</div>
+            <div class="small-muted">Credits: ${r2.totalCredit.toFixed(1).replace(/\.0$/, '')}</div>
+          </div>
+        </div>
+      `;
+            resultBody.innerHTML = `<div class="small-muted">Session CGPA calculated from both semesters.</div>`;
+        }
+
+        // --- Wire up events ---
+        addCourseS1Btn.addEventListener('click', () => createCourseRow(1));
+        addCourseS2Btn.addEventListener('click', () => createCourseRow(2));
+
+        // toggle modes
+        function setModeSession(active) {
+            if (active) {
+                semester2Section.classList.remove('d-none');
+                addCourseS2Btn.classList.remove('d-none');
+                document.getElementById('label-session').classList.add('active');
+                document.getElementById('label-semester').classList.remove('active');
+            } else {
+                semester2Section.classList.add('d-none');
+                addCourseS2Btn.classList.add('d-none');
+                document.getElementById('label-semester').classList.add('active');
+                document.getElementById('label-session').classList.remove('active');
+            }
+            // reset result cards when mode toggles
+            gpaDisplay.classList.add('d-none');
+            perSemesterResults.classList.add('d-none');
+            resultBody.innerHTML = `<p class="small-muted">Mode changed. Enter courses and click Calculate.</p>`;
+        }
+
+        modeSemester.addEventListener('change', () => setModeSession(false));
+        modeSession.addEventListener('change', () => setModeSession(true));
+        // ensure labels show active style on load
+        setModeSession(false);
+
+        // Calculate action
+        calculateBtn.addEventListener('click', () => {
+            const sessionActive = modeSession.checked;
+            const sem1Courses = readCoursesFrom(sem1List);
+            const v1 = validateCourses(sem1Courses);
+            if (!v1.ok) { alert('Semester 1: ' + v1.message); return; }
+
+            if (!sessionActive) {
+                showSingleSemesterResult(sem1Courses);
+                return;
+            }
+
+            const sem2Courses = readCoursesFrom(sem2List);
+            const v2 = validateCourses(sem2Courses);
+            if (!v2.ok) { alert('Semester 2: ' + v2.message); return; }
+
+            // both valid -> show session result
+            showSessionResult(sem1Courses, sem2Courses);
+        });
+
+        // Reset - clears to defaults
+        resetBtn.addEventListener('click', () => {
+            if (!confirm('Reset all courses and results to defaults?')) return;
+            preloadDefaults();
+            setModeSession(false);
+            gpaDisplay.classList.add('d-none');
+            perSemesterResults.classList.add('d-none');
+            resultBody.innerHTML = `<p class="small-muted">Reset complete. Edit courses and Calculate.</p>`;
+        });
+
+        // Demo fill: prefill some sample values into visible forms (not resetting)
+        demoFillBtn.addEventListener('click', () => {
+            // if no rows, create defaults
+            if (!sem1List.children.length) createCourseRow(1, { name: 'MTH101', credit: 3, grade: 5.0 });
+            if (!sem2List.children.length) createCourseRow(2, { name: 'PHY201', credit: 3, grade: 4.0 });
+
+            // populate first three sem1 rows if exist
+            const s1 = sem1List.querySelectorAll('.course-row');
+            for (let i = 0; i < 3 && i < s1.length; i++) {
+                const nameI = s1[i].querySelector('.course-name');
+                const creditI = s1[i].querySelector('.course-credit');
+                const gradeI = s1[i].querySelector('select');
+                nameI.value = nameI.value || ['MTH101', 'CHM102', 'GNS103'][i];
+                creditI.value = creditI.value || [3, 2, 2][i];
+                gradeI.value = gradeI.value || ['5.0', '4.0', '3.0'][i];
+            }
+            // same for sem2
+            const s2 = sem2List.querySelectorAll('.course-row');
+            for (let i = 0; i < 3 && i < s2.length; i++) {
+                const nameI = s2[i].querySelector('.course-name');
+                const creditI = s2[i].querySelector('.course-credit');
+                const gradeI = s2[i].querySelector('select');
+                nameI.value = nameI.value || ['PHY201', 'CSC202', 'ENG203'][i];
+                creditI.value = creditI.value || [3, 3, 2][i];
+                gradeI.value = gradeI.value || ['4.0', '5.0', '3.0'][i];
+            }
+        });
+
+        // --- Initialization: preload defaults and set up initial UI ---
+        (function init() {
+            preloadDefaults();
+            setModeSession(false); // single semester default
+            resultBody.innerHTML = `<p class="small-muted">Ready. Use the controls above to add/remove courses and calculate GPA/CGPA.</p>`;
+        })();
+
+    </script>
+
+    <!-- Bootstrap JS bundle (only external dependency) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>
